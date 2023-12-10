@@ -1,0 +1,23 @@
+# npm
+node_modules
+package-lock.json
+*.log
+*.gz
+
+# Coveralls
+.nyc_output
+coverage
+dist
+#dist.zip
+
+# IDEs and editors
+.idea
+.vscode
+*.suo
+*.ntvs*
+
+# Benchmarking
+benchmarks/graphs
+
+# ignore additional files using core.excludesFile
+# https://git-scm.com/docs/gitignore
