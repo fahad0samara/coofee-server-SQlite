@@ -57,31 +57,8 @@ db.serialize(() => {
   `);
 });
 
-const uploadToCloudinary = async (fileBuffer: Buffer) => {
-  try {
-    const result = await cloudinary.uploader
-      .upload_stream(
-        {
-          folder: "coffee-images", // Specify the folder in Cloudinary
-          public_id: `coffee-${Date.now()}`, // Specify the public ID for the image
-          overwrite: true, // Overwrite existing image if necessary
-        },
-        (error: any, result: any) => {
-          if (error) {
-            console.error("Cloudinary upload error:", error);
-            throw new Error("Error uploading image to Cloudinary");
-          }
-          return result;
-        }
-      )
-      .end(fileBuffer);
 
-    return result.secure_url;
-  } catch (error) {
-    console.error("Upload to Cloudinary error:", error);
-    throw error;
-  }
-};
+
 
 
 // Create a function to insert coffee data into the database
@@ -99,12 +76,14 @@ const insertCoffeeData = async (coffeeData: { id: string; categoryId: string; na
       price, ingredients, servingSize, caffeineContent, origin, roastLevel,
     } = coffee;
 
-    // Upload image to Cloudinary and get the URL
-    const cloudinaryUrl = 
-      imageUri ? await uploadToCloudinary(imageUri) : null; 
+
+const image =
+  "https://images.unsplash.com/photo-1640389085228-323113fae2cd?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
+  
+
 
     stmt.run(
-      id, categoryId, name, description, cloudinaryUrl,
+      id, categoryId, name, description, image,
       price, ingredients, servingSize, caffeineContent, origin, roastLevel
     );
   }
