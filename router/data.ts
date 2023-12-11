@@ -259,4 +259,19 @@
      origin: "Various",
      roastLevel: "Medium",
    },
+
+   {
+     id: "21",
+     categoryId: "espresso",
+     name: "Classic Espresso",
+     description:
+       "Strong and concentrated coffee made by forcing hot water through finely-ground coffee beans.",
+     imageUri: "almond_cappuccino_image.jpg",
+     price: "$2.99",
+     ingredients: "Coffee beans, water",
+     servingSize: "1 shot",
+     caffeineContent: "High caffeine",
+     origin: "Blend of Arabica and Robusta beans",
+     roastLevel: "Medium",
+   },
  ];
