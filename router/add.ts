@@ -148,9 +148,7 @@ router.delete('/delete-coffee/:id', (req: Request, res: Response) => {
   db.run(sql, [id], (error: Error | null) => {
     if (error) {
       console.error('Error deleting coffee item:', error);
-      res.status(500).json(
-        error
-      );
+      res.status(500).json({error: 'Internal server error'});
     } else {
       res.status(200).json({message: 'Successfully deleted coffee item'});
     }
