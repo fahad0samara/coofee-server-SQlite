@@ -69,7 +69,7 @@ router.post('/add-coffee', upload.single('image'), async (req, res) => {
 
   if (req.file) {
     const uploadOptions = {
-      folder: 'coffee-images', // Specify the folder in Cloudinary
+          folder: 'coffee/coffee-images', // Specify the folder in Cloudinary
       public_id: `coffee-${Date.now()}`, // Specify the public ID for the image
       overwrite: true, // Overwrite existing image if necessary
     };
@@ -158,68 +158,116 @@ router.put(
   '/update-coffee/:id',
   upload.single('image'),
   async (req: Request, res: Response) => {
-    const {id} = req.params;
+    const { id } = req.params;
     const updatedCoffeeItem = req.body;
-    let imageUri = null;
+    console.log(updatedCoffeeItem);
 
-    // Check if a new image is provided
-    if (req.file) {
-      const uploadOptions = {
-        folder: 'coffee-images', // Specify the folder in Cloudinary
-        public_id: `coffee-${Date.now()}`, // Specify the public ID for the image
-        overwrite: true, // Overwrite existing image if necessary
-      };
+    try {
+      // Check if a new image is provided
+      if (req.file) {
+        const uploadOptions = {
+          folder: 'coffee/coffee-images', // Specify the folder in Cloudinary
+          public_id: `coffee-${Date.now()}`,
+          overwrite: true,
+        };
 
-      // Upload the new image to Cloudinary
-      const result = await cloudinary.uploader
-        .upload_stream(uploadOptions, async (error: any, result: any) => {
+        // Upload the new image to Cloudinary
+        const result = await cloudinary.uploader.upload_stream(uploadOptions, (error: any, result: any) => {
           if (error) {
             console.error('Error uploading image to Cloudinary:', error);
-            res.status(500).json({error: 'Internal server error'});
+            res.status(500).json({ error: 'Error uploading image to Cloudinary' });
           } else {
-            imageUri = result.secure_url;
-            updatedCoffeeItem.imageUri = imageUri; // Update the image URI in the coffee item data
+            const imageUri = result.secure_url;
+            console.log('Image URI after Cloudinary upload:', imageUri);
+
+            // Update the image URI in the coffee item data
+            updatedCoffeeItem.imageUri = imageUri;
 
             // Continue with updating data in the database
-            // ...
+            const sql = `
+              UPDATE coffeeData
+              SET categoryId = ?,
+                  name = ?,
+                  description = ?,
+                  imageUri = ?,
+                  price = ?,
+                  ingredients = ?,
+                  servingSize = ?,
+                  caffeineContent = ?,
+                  origin = ?,
+                  roastLevel = ?
+              WHERE id = ?
+            `;
+
+            const values = [
+              updatedCoffeeItem.categoryId,
+              updatedCoffeeItem.name,
+              updatedCoffeeItem.description,
+              updatedCoffeeItem.imageUri,
+              updatedCoffeeItem.price,
+              updatedCoffeeItem.ingredients,
+              updatedCoffeeItem.servingSize,
+              updatedCoffeeItem.caffeineContent,
+              updatedCoffeeItem.origin,
+              updatedCoffeeItem.roastLevel,
+              id,
+            ];
+
+            db.run(sql, values, (dbError) => {
+              if (dbError) {
+                console.error('Error updating coffee item:', dbError);
+                res.status(500).json({ error: 'Internal server error' });
+              } else {
+                res.status(200).json({ message: 'Successfully updated coffee item' });
+              }
+            });
           }
-        })
-        .end(req.file.buffer);
-    }
-
-    // Update the data in the database, including the imageUri
-    const sql = `
-    UPDATE coffeeData
-    SET categoryId = ?, name = ?, description = ?, imageUri = ?, 
-        price = ?, ingredients = ?, servingSize = ?, caffeineContent = ?, 
-        origin = ?, roastLevel = ?
-    WHERE id = ?
-  `;
-
-    const values = [
-      updatedCoffeeItem.categoryId,
-      updatedCoffeeItem.name,
-      updatedCoffeeItem.description,
-      updatedCoffeeItem.imageUri, // Always update the imageUri
-      updatedCoffeeItem.price,
-      updatedCoffeeItem.ingredients,
-      updatedCoffeeItem.servingSize,
-      updatedCoffeeItem.caffeineContent,
-      updatedCoffeeItem.origin,
-      updatedCoffeeItem.roastLevel,
-      id, // Coffee item ID to identify the item to update
-    ];
-
-    db.run(sql, values, dbError => {
-      if (dbError) {
-        console.error('Error updating coffee item:', dbError);
-        res.status(500).json({error: 'Internal server error'});
+        }).end(req.file.buffer);
       } else {
-        res.status(200).json({message: 'Successfully updated coffee item'});
+        // No new image provided, only update data in the database
+        const sql = `
+          UPDATE coffeeData
+          SET categoryId = ?,
+              name = ?,
+              description = ?,
+              price = ?,
+              ingredients = ?,
+              servingSize = ?,
+              caffeineContent = ?,
+              origin = ?,
+              roastLevel = ?
+          WHERE id = ?
+        `;
+
+        const values = [
+          updatedCoffeeItem.categoryId,
+          updatedCoffeeItem.name,
+          updatedCoffeeItem.description,
+          updatedCoffeeItem.price,
+          updatedCoffeeItem.ingredients,
+          updatedCoffeeItem.servingSize,
+          updatedCoffeeItem.caffeineContent,
+          updatedCoffeeItem.origin,
+          updatedCoffeeItem.roastLevel,
+          id,
+        ];
+
+        db.run(sql, values, (dbError) => {
+          if (dbError) {
+            console.error('Error updating coffee item:', dbError);
+            res.status(500).json({ error: 'Internal server error' });
+          } else {
+            res.status(200).json({ message: 'Successfully updated coffee item' });
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error('Error processing image and updating coffee item:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   },
 );
+
 
 
 router.get('/api', (req, res, next) => {
