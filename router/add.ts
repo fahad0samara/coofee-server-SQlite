@@ -2,7 +2,6 @@ import express, {Request, Response} from 'express';
 import multer, {FileFilterCallback} from 'multer';
 import path from 'path';
 import sqlite3 from 'sqlite3';
-import { sampleCoffeeData } from './data';
 const router = express.Router();
 const db = new sqlite3.Database("coffee.db", (err) => {
   if (err) {
@@ -259,65 +258,10 @@ router.get('/', (req, res, next) => {
 });
 
 
-const uploadToCloudinary = async (fileBuffer: Buffer) => {
-  try {
-    const result = await cloudinary.uploader
-      .upload_stream(
-        {
-          folder: "coffee-images", // Specify the folder in Cloudinary
-          public_id: `coffee-${Date.now()}`, // Specify the public ID for the image
-          overwrite: true, // Overwrite existing image if necessary
-        },
-        (error: any, result: any) => {
-          if (error) {
-            console.error("Cloudinary upload error:", error);
-            throw new Error("Error uploading image to Cloudinary");
-          }
-          return result;
-        }
-      )
-      .end(fileBuffer);
-
-    return result.secure_url;
-  } catch (error) {
-    console.error("Upload to Cloudinary error:", error);
-    throw error;
-  }
-};
 
 
-// Create a function to insert coffee data into the database
-const insertCoffeeData = async (coffeeData: { id: string; categoryId: string; name: string; description: string; imageUri: any; price: string; ingredients: string; servingSize: string; caffeineContent: string; origin: string; roastLevel: string; }[]) => {
-  const stmt = db.prepare(`
-    INSERT INTO coffeeData (
-      id, categoryId, name, description, imageUri, price, ingredients,
-      servingSize, caffeineContent, origin, roastLevel
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  for (const coffee of coffeeData) {
-    const {
-      id, categoryId, name, description, imageUri,
-      price, ingredients, servingSize, caffeineContent, origin, roastLevel,
-    } = coffee;
 
 
-const image =
-  "https://images.unsplash.com/photo-1640389085228-323113fae2cd?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
-  
-
-
-    stmt.run(
-      id, categoryId, name, description, image,
-      price, ingredients, servingSize, caffeineContent, origin, roastLevel
-    );
-  }
-
-  stmt.finalize();
-};
-
-// Insert the sample data into the database
-insertCoffeeData(sampleCoffeeData)
 
 
 
