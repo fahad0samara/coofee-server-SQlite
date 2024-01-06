@@ -227,33 +227,38 @@ async function deleteUserById(id: string): Promise<void> {
 
 
 
-// Add a new route to fetch user profile by email
-router.get('/getUserProfile', async (req, res) => {
-  const { email } = req.query; // Use req.query to get parameters from the query string
+// Add a new route to fetch user profile by id
+router.get('/getUserProfile/:id', async (req, res) => {
+  const userId = req.params.id;
 
   try {
-    // Fetch user data from the database based on the provided email
-    const user: User | null = await getUserByEmail(email as string);
-    
+    // Fetch the user from the database based on their ID
+    const user: User | null = await getUserById(userId);
 
-    // Check if a user with the provided email exists
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({error: 'User not found'});
     }
 
-    // Send the complete user profile to the client
-    return res.status(200).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      // Add other user profile properties as needed
-    });
+    return res.status(200).json(user);
   } catch (error) {
     console.error('Error fetching user profile:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({error: 'Internal server error'});
   }
 });
+
+
+
+// Function to fetch a user by ID from the database
+async function getUserById(id: string): Promise<User | null> {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => {
+      if (err) {
+        return reject(err);
+      }
+      return resolve(row ? (row as User) : null);
+    });
+  });
+}
 
 
 
