@@ -227,6 +227,33 @@ async function deleteUserById(id: string): Promise<void> {
 
 
 
+// Add a new route to fetch user profile by email
+router.get('/getUserProfile', async (req, res) => {
+  const { email } = req.query; // Use req.query to get parameters from the query string
+
+  try {
+    // Fetch user data from the database based on the provided email
+    const user: User | null = await getUserByEmail(email as string);
+    
+
+    // Check if a user with the provided email exists
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Send the complete user profile to the client
+    return res.status(200).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      // Add other user profile properties as needed
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
 
