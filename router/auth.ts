@@ -48,12 +48,22 @@ db.serialize(() => {
 
 // Registration endpoint
 router.post('/register', upload.single('profile_image'), async (req, res) => {
-  const {name, email, password, role} = req.body;
-  const profileImageBuffer = req.file ? req.file.buffer : null;
-
   try {
+    const { name, email, password, role } = req.body;
+    const profileImageBuffer = req.file ? req.file.buffer : null;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    // Check if the email already exists
+    const existingUser = await getUserByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email address already exists' });
+    }
+
     // Generate a salt
-    const saltRounds = 10; // You can adjust the number of rounds as needed
+    const saltRounds = 10;
     const salt = await bcrypt.genSalt(saltRounds);
 
     // Hash the password with the generated salt
@@ -61,37 +71,52 @@ router.post('/register', upload.single('profile_image'), async (req, res) => {
 
     let imageUri = null;
 
-    // Check if the user uploaded an image
     if (profileImageBuffer) {
+      // Handle image upload to Cloudinary
       const uploadOptions = {
-        folder: 'coffee-user', // Specify the folder in Cloudinary
-        public_id: `coffee-${Date.now()}`, // Specify the public ID for the image
-        overwrite: true, // Overwrite existing image if necessary
+        folder: 'coffee-user',
+        public_id: `coffee-${Date.now()}`,
+        overwrite: true,
       };
-         const result = await cloudinary.uploader
-      .upload_stream(uploadOptions, async (error:any, result:any) => {
-        if (error) {
-          console.error('Error uploading image to Cloudinary:', error);
-          res.status(500).json(error);
-        } else {
-    imageUri = result.secure_url;
-    // Continue with storing data in the database
-    insertUser(name, email, hashedPassword, imageUri, res);
-        }
+
+      try {
+        const result = await new Promise<string>((resolve, reject) => {
+          cloudinary.uploader.upload_stream(uploadOptions, (error: any, result: { secure_url: any }) => {
+            if (error) {
+              console.error('Error uploading image to Cloudinary:', error);
+              reject({ error: 'Error uploading image to Cloudinary' });
+            } else {
+              resolve(result.secure_url);
+            }
+          }).end(profileImageBuffer);
+        });
+
+        imageUri = result;
+      } catch (error) {
+        return res.status(500).json(error);
       }
-      )
-      .end(profileImageBuffer);
     }
-    else {
-      // Continue with storing data in the database
-      insertUser(name, email, hashedPassword, imageUri, res, role);
-    }
+
+    // Continue with storing data in the database
+    const userId = await insertUser(name, email, hashedPassword, imageUri, role);
+
+    // Send the user details in the response
+    const user = {
+      id: userId,
+      name,
+      email,
+      role,
+      // Include other user details as needed
+    };
+
+    res.status(201).json({ message: 'User registered successfully', user });
   } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json(error);
+    console.error('Error in registration endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-}
-);
+});
+
+
 
 
 
@@ -101,38 +126,39 @@ function insertUser(
   email: string,
   hashedPassword: string,
   imageUri: string | null,
-  res: Response,
   role: string = 'user',
-) {
- db.run(
-   'INSERT INTO users (name, email, password, profile_image, role) VALUES (?, ?, ?, ?, ?)',
-   [name, email, hashedPassword, imageUri, role],
-   (err: SQLiteError | null) => {
-     if (err) {
-       if (err.errno === sqlite3.CONSTRAINT) {
-         return res.status(400).json({error: 'Email address already exists'});
-       }
-       console.error('Database error:', err);
-       return res.status(500).json({error: 'Internal server error'});
-     }
-
-     return res.status(201).json({message: 'User registered successfully'});
-   },
- );
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO users (name, email, password, profile_image, role) VALUES (?, ?, ?, ?, ?)',
+      [name, email, hashedPassword, imageUri, role],
+      function (this: { lastID: number }, err: SQLiteError | null) {
+        if (err) {
+          if (err.errno === sqlite3.CONSTRAINT) {
+            reject({ error: 'Email address already exists' });
+          } else {
+            console.error('Database error:', err);
+            reject({ error: 'Internal server error' });
+          }
+        } else {
+          resolve(this.lastID); // Return the inserted user ID
+        }
+      },
+    );
+  });
 }
-
 // Function to fetch user data by email
 async function getUserByEmail(email: string): Promise<User | null> {
   return new Promise((resolve, reject) => {
     db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
       if (err) {
-        return reject(err);
+        reject({ error: 'Error fetching user by email' });
+      } else {
+        resolve(row ? (row as User) : null);
       }
-      return resolve(row ? (row as User) : null);
     });
   });
 }
-
 
 
 // In the login route, specify the type of user
@@ -152,22 +178,30 @@ router.post('/login', async (req, res) => {
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'the password is worng' });
     }
+
     const token = jwt.sign(
       { userId: user.id, userEmail: user.email, userRole: user.role },
       "awafdasfdf",
-      
-      
       { expiresIn: '1h' }
     );
 
     // Send a success response or the token to the client
     return res.status(200).json({
+      success: true,
       message: 'Login successful',
-      token: token,
-      role: user.role,
-      user: user,
+      data: {
+        token,
+        role: user.role,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profile_image: user.profile_image,
+        },
+      },
     });
   } catch (error) {
     console.error('Error during login:', error);
@@ -224,6 +258,62 @@ async function deleteUserById(id: string): Promise<void> {
     });
   });
 }
+
+
+// New endpoint to fetch user info using the stored token
+router.get('/getUserInfo', async (req: Request, res: Response) => {
+  const token = req.headers.authorization?.split(' ')[1]; // Get the token from the Authorization header
+
+  try {
+    if (!token) {
+      return res.status(401).json({ error: 'Token not provided' });
+    }
+
+    // Verify the token
+    const decodedToken = jwt.verify(token, 'awafdasfdf'); // Replace with your secret key
+
+    if (!decodedToken || typeof decodedToken !== 'object') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Fetch user data from the database based on the decoded token
+    const userId = (decodedToken as any).userId; // Assuming 'userId' is the key used in the token
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token format' });
+    }
+
+    const user: User | null = await getUserById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Return the user information
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profile_image: user.profile_image,
+      
+      },
+    });
+  } catch (error) {
+   
+    // Check for specific error conditions and provide appropriate error messages
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: 'Token has expired' });
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 
